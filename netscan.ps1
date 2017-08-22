@@ -1,6 +1,6 @@
 # netscan.ps1
-# this script performs a basic network scan to find active devices on the local network
-# and attempts to retrieve device information, including hostname and MAC address.
+# this script performs a more detailed network scan to find active devices,
+# retrieves MAC addresses, and checks for common open ports on each device.
 
 # get the local IP address and subnet mask to figure out the network range
 function Get-NetworkRange {
@@ -11,7 +11,7 @@ function Get-NetworkRange {
     return $networkRange
 }
 
-# function to scan the network by pinging each IP in the range
+# function to scan the network and identify active devices, retrieving IPs and hostnames
 function Scan-Network {
     param (
         [string]$networkRange
@@ -19,7 +19,7 @@ function Scan-Network {
 
     Write-Host "scanning network range: $networkRange"
     
-    # split the IP base to loop through addresses 1-254
+    # base IP to loop through addresses 1-254
     $ipBase = $networkRange -replace '\d+$', ''
     $activeDevices = @()
 
@@ -59,7 +59,43 @@ function Get-MACAddress {
     }
 }
 
-# main script execution
+# function to check common open ports on each active device
+function Check-OpenPorts {
+    param (
+        [array]$activeDevices
+    )
+
+    $commonPorts = @{
+        21  = "FTP: File Transfer Protocol"
+        22  = "SSH: Secure Shell"
+        23  = "Telnet: Unencrypted remote login"
+        25  = "SMTP: Simple Mail Transfer Protocol"
+        53  = "DNS: Domain Name System"
+        80  = "HTTP: Hypertext Transfer Protocol"
+        110 = "POP3: Post Office Protocol version 3"
+        143 = "IMAP: Internet Message Access Protocol"
+        443 = "HTTPS: HTTP Secure"
+        3389 = "RDP: Remote Desktop Protocol"
+    }
+
+    Write-Host "`nchecking for open ports on active devices..."
+    foreach ($device in $activeDevices) {
+        Write-Host "`n$($device.IPAddress) - Hostname: $($device.Hostname)"
+        foreach ($port in $commonPorts.Keys) {
+            try {
+                $tcpClient = New-Object System.Net.Sockets.TcpClient
+                $tcpClient.Connect($device.IPAddress, $port)
+                $tcpClient.Close()
+                Write-Host "Port $port is open - $($commonPorts[$port])"
+            } catch {
+                # port is closed, move on
+            }
+        }
+    }
+}
+
+# main script execution: get network range, scan for devices, retrieve MACs, and check open ports
 $networkRange = Get-NetworkRange
 $activeDevices = Scan-Network -networkRange $networkRange
 Get-MACAddress -activeDevices $activeDevices
+Check-OpenPorts -activeDevices $activeDevices
