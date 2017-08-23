@@ -1,6 +1,6 @@
 # netscan.ps1
-# this script performs a more detailed network scan to find active devices,
-# retrieves MAC addresses, and checks for common open ports on each device.
+# this script performs a detailed network scan to identify active devices, retrieve MAC addresses,
+# scan for open ports across a wider range, and output results with device information.
 
 # get the local IP address and subnet mask to figure out the network range
 function Get-NetworkRange {
@@ -11,15 +11,13 @@ function Get-NetworkRange {
     return $networkRange
 }
 
-# function to scan the network and identify active devices, retrieving IPs and hostnames
+# function to scan the network for active devices, retrieving IPs and hostnames
 function Scan-Network {
     param (
         [string]$networkRange
     )
 
     Write-Host "scanning network range: $networkRange"
-    
-    # base IP to loop through addresses 1-254
     $ipBase = $networkRange -replace '\d+$', ''
     $activeDevices = @()
 
@@ -59,7 +57,7 @@ function Get-MACAddress {
     }
 }
 
-# function to check common open ports on each active device
+# function to check a range of ports on each active device
 function Check-OpenPorts {
     param (
         [array]$activeDevices
@@ -76,20 +74,31 @@ function Check-OpenPorts {
         143 = "IMAP: Internet Message Access Protocol"
         443 = "HTTPS: HTTP Secure"
         3389 = "RDP: Remote Desktop Protocol"
+        8080 = "HTTP-Alt: Alternative HTTP protocol"
     }
 
-    Write-Host "`nchecking for open ports on active devices..."
+    Write-Host "`nscanning for open ports on active devices..."
     foreach ($device in $activeDevices) {
-        Write-Host "`n$($device.IPAddress) - Hostname: $($device.Hostname)"
+        Write-Host "`n$($device.IPAddress) - Hostname: $($device.Hostname), MAC: $($device.MACAddress)"
+        $devicePorts = @()
+        
         foreach ($port in $commonPorts.Keys) {
             try {
                 $tcpClient = New-Object System.Net.Sockets.TcpClient
                 $tcpClient.Connect($device.IPAddress, $port)
                 $tcpClient.Close()
+                $devicePorts += "$port: $($commonPorts[$port])"
                 Write-Host "Port $port is open - $($commonPorts[$port])"
             } catch {
-                # port is closed, move on
+                # port is closed, no action needed
             }
+        }
+
+        # add open ports info to device object
+        if ($devicePorts) {
+            $device | Add-Member -MemberType NoteProperty -Name OpenPorts -Value ($devicePorts -join ", ")
+        } else {
+            $device | Add-Member -MemberType NoteProperty -Name OpenPorts -Value "No open common ports"
         }
     }
 }
